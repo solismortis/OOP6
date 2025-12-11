@@ -34,6 +34,19 @@ class Shape:
         self.center_x += dx
         self.center_y += dy
 
+    def draw_center(self, painter):
+        painter.drawLine(self.center_x - 10,
+                         self.center_y - 10,
+                         self.center_x + 10,
+                         self.center_y + 10)
+        painter.drawLine(self.center_x - 10,
+                         self.center_y + 10,
+                         self.center_x + 10,
+                         self.center_y - 10)
+
+    def paint(self, painter):
+        painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
+
     def save(self):
         """Сохраняет объект в файл. Переписывается у потомков"""
 
@@ -43,6 +56,21 @@ class Shape:
 
 class Group(Shape):
     """Отправляется в контейнер после принятия объектов"""
+    def __init__(self, center_x, center_y):
+        super().__init__(center_x, center_y)
+        self.objects = []
+
+    def add(self, object):
+        self.objects.append(object)
+        # Calc new center from other centers
+        total_x = 0
+        total_y = 0
+        for object in self.objects:
+            total_x += object.center_x
+            total_y += object.center_y
+        self.center_x = total_x / len(self.objects)
+        self.center_y = total_y / len(self.objects)
+
 
 class Ellipse(Shape):
     def __init__(self, center_x, center_y, r1=None, r2=None):
@@ -186,6 +214,14 @@ class PaintWidget(QPushButton):
                 pen.setColor(QColor(shape.color))
             painter.setPen(pen)
             shape.paint(painter)
+
+        # Draw center
+        pen.setWidth(1)
+        pen.setColor(QColor('white'))
+        painter.setPen(pen)
+        for shape in shape_container:
+            shape.draw_center(painter)
+
         painter.end()
 
     def mousePressEvent(self, event):
