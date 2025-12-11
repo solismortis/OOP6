@@ -429,16 +429,14 @@ class MainWindow(QMainWindow):
 
     def load(self):
         filename = QFileDialog.getOpenFileName()[0]
-        print(filename)
         with open(filename, 'r') as file:
             content = file.read()
             print(content)
 
 
     def save(self):
-        QFileDialog()
-
-        with open('example.txt', 'w') as file:
+        filename = QFileDialog.getSaveFileName()[0]
+        with open(filename, 'w') as file:
             file.write("Hello, world!")
 
 
