@@ -34,6 +34,12 @@ class Shape:
         self.center_x += dx
         self.center_y += dy
 
+    def save(self):
+        """Сохраняет объект в файл. Переписывается у потомков"""
+
+    def load(self):
+        """Загружает объект из файла. Переписывается у потомков"""
+
 
 class Group(Shape):
     """Отправляется в контейнер после принятия объектов"""
@@ -70,28 +76,6 @@ class Ellipse(Shape):
 
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
-
-    def resize(self, ds, widget_width=None, widget_height=None):
-        # ds too small for ellipse
-        if ds > 0:
-            ds += 30
-        else:
-            ds -= 30
-        # Check borders
-        if ds < 0:
-            pass  # No need to check borders
-        else:
-            new_r1 = self.r1 + ds
-            new_r2 = self.r2 + ds
-            # Check left and top
-            if self.center_x < new_r1 or self.center_y < new_r2:
-                return
-            # Check right and bottom
-            if self.center_x + new_r1 > widget_width \
-            or self.center_y + new_r2 > widget_height:
-                return
-        self.r1 += ds
-        self.r2 += ds
 
 
 class Circle(Ellipse):
@@ -137,39 +121,6 @@ class ConnectedPointGroup(Shape):
                          self.points[0].center_y,
                          self.points[-1].center_x,
                          self.points[-1].center_y)
-
-    def resize(self, ds, widget_width, widget_height):
-        if ds < 0:
-            ds = 1 / abs(ds)
-        # Check borders
-        for point in self.points:
-            # Calculate vector from center to point
-            vector_x = point.center_x - self.center_x
-            vector_y = point.center_y - self.center_y
-
-            # Scale the vector
-            vector_x *= ds
-            vector_y *= ds
-
-            # Calculate new position
-            new_center_x = int(self.center_x + vector_x)
-            new_center_y = int(self.center_y + vector_y)
-            if new_center_x < 0 or new_center_y < 0 \
-            or new_center_x > widget_width or new_center_y > widget_height:
-                return
-
-        for point in self.points:
-            # Calculate vector from center to point
-            vector_x = point.center_x - self.center_x
-            vector_y = point.center_y - self.center_y
-
-            # Scale the vector
-            vector_x *= ds
-            vector_y *= ds
-
-            # Calculate new position. We have to int() because PyQT doesn't want float for coords
-            point.center_x = int(self.center_x + vector_x)
-            point.center_y = int(self.center_y + vector_y)
 
 
 class Section(ConnectedPointGroup):
@@ -394,8 +345,8 @@ class MainWindow(QMainWindow):
     def create_menu(self):
         # Don't know what should go here. Save, load and exit?
         menu = self.menuBar().addMenu("&Menu")
-        menu.addAction("&Load", self.load)
         menu.addAction("&Save", self.save)
+        menu.addAction("&Load", self.load)
         menu.addAction("&Exit", self.close)
 
     def create_creation_toolbar(self):
@@ -427,17 +378,16 @@ class MainWindow(QMainWindow):
             if shape.selected:
                 shape.color = color
 
+    def save(self):
+        filename = QFileDialog.getSaveFileName()[0]
+        with open(filename, 'w') as file:
+            file.write("Hello, world!")
+
     def load(self):
         filename = QFileDialog.getOpenFileName()[0]
         with open(filename, 'r') as file:
             content = file.read()
             print(content)
-
-
-    def save(self):
-        filename = QFileDialog.getSaveFileName()[0]
-        with open(filename, 'w') as file:
-            file.write("Hello, world!")
 
 
 if __name__ == '__main__':
