@@ -1,3 +1,4 @@
+"""Qt hates floats in coords"""
 import math
 import sys
 from functools import partial
@@ -30,7 +31,22 @@ class Shape:
             return True
         return False
 
-    def move(self, dx, dy, widget_width, widget_height):
+    def move_possible(self, dx, dy, widget_width, widget_height):
+        # Left
+        if dx < 0 and self.center_x + dx < 0:
+            return False
+        # Right
+        elif self.center_x + dx > widget_width:
+            return False
+        # Top
+        if dy < 0 and self.center_y + dy < 0:
+            return False
+        # Bottom
+        elif self.center_y + dy > widget_height:
+            return False
+        return True
+
+    def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
 
@@ -55,21 +71,36 @@ class Shape:
 
 
 class Group(Shape):
-    """Отправляется в контейнер после принятия объектов"""
-    def __init__(self, center_x, center_y):
-        super().__init__(center_x, center_y)
-        self.objects = []
+    def __init__(self):
+        super().__init__(0, 0)
+        self.objs = []
 
-    def add(self, object):
-        self.objects.append(object)
+    def add(self, obj):
+        self.objs.append(obj)
         # Calc new center from other centers
         total_x = 0
         total_y = 0
-        for object in self.objects:
-            total_x += object.center_x
-            total_y += object.center_y
-        self.center_x = total_x / len(self.objects)
-        self.center_y = total_y / len(self.objects)
+        for obj in self.objs:
+            total_x += obj.center_x
+            total_y += obj.center_y
+        self.center_x = int(total_x / len(self.objs))
+        self.center_y = int(total_y / len(self.objs))
+
+    def move_possible(self, dx, dy, widget_width, widget_height):
+        for obj in self.objs:
+            if not obj.move_possible(dx, dy, widget_width, widget_height):
+                return False
+        return True
+
+    def move(self, dx, dy):
+        self.center_x += dx
+        self.center_y += dy
+        for obj in self.objs:
+            obj.move(dx, dy)
+
+    def paint(self, painter):
+        for obj in self.objs:
+            obj.paint(painter)
 
 
 class Ellipse(Shape):
@@ -87,18 +118,20 @@ class Ellipse(Shape):
             self.r1 = RADIUS + 20
             self.r2 = RADIUS - 20
 
-    def move(self, dx, dy, widget_width=None, widget_height=None):
+    def move_possible(self, dx, dy, widget_width, widget_height):
         new_center_x = self.center_x + dx
         new_center_y = self.center_y + dy
         # Check left and top
         if new_center_x - self.r1 < 0 \
         or new_center_y - self.r2 < 0:
-            return
+            return False
         # Check right and bottom
         if new_center_x + self.r1 > widget_width \
         or new_center_y + self.r2 > widget_height:
-            return
+            return False
+        return True
 
+    def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
 
@@ -109,6 +142,7 @@ class Ellipse(Shape):
 class Circle(Ellipse):
     pass
 
+
 class Point(Shape):
     pass
 
@@ -118,26 +152,18 @@ class ConnectedPointGroup(Shape):
         super().__init__(center_x, center_y)
         self.points = points
 
-    def move(self, dx, dy, widget_width, widget_height):
-        # Check points for borders
+    def move_possible(self, dx, dy, widget_width, widget_height):
         for point in self.points:
-            # Left
-            if dx < 0 and point.center_x + dx < 0:
-                return
-            # Right
-            elif point.center_x + dx > widget_width:
-                return
-            # Top
-            if dy < 0 and point.center_y + dy < 0:
-                return
-            # Bottom
-            elif point.center_y + dy > widget_height:
-                return
+            if not point.move_possible(dx, dy, widget_width, widget_height):
+                return False
+        return True
 
+    def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
         for point in self.points:
-            point.move(dx, dy, widget_width, widget_height)
+            point.move(dx, dy)
+        return True
 
     def paint(self, painter):
         point0 = self.points[0]
@@ -238,7 +264,7 @@ class PaintWidget(QPushButton):
                                 other_shape.selected = False
                     break
             if selected:
-                print("Selected!")
+                print('Selected')
             else:  # Deselect all
                 for shape in shape_container:
                     shape.selected = False
@@ -280,47 +306,43 @@ class PaintWidget(QPushButton):
         # Move all selected
         if key == Qt.Key.Key_Up:
             for shape in shape_container:
-                if shape.selected:
-                    shape.move(0, -MOVE_DIST,
-                               self.size().width(),
-                               self.size().height())
+                if shape.selected and shape.move_possible(
+                0,
+                -MOVE_DIST,
+                self.size().width(),
+                self.size().height()
+                ):
+                    shape.move(0, -MOVE_DIST)
             self.update()
         elif key == Qt.Key.Key_Down:
             for shape in shape_container:
-                if shape.selected:
-                    shape.move(0, MOVE_DIST,
-                               self.size().width(),
-                               self.size().height())
+                if shape.selected and shape.move_possible(
+                0,
+                MOVE_DIST,
+                self.size().width(),
+                self.size().height()
+                ):
+                    shape.move(0, MOVE_DIST)
             self.update()
         elif key == Qt.Key.Key_Left:
             for shape in shape_container:
-                if shape.selected:
-                    shape.move(-MOVE_DIST, 0,
-                               self.size().width(),
-                               self.size().height())
+                if shape.selected and shape.move_possible(
+                -MOVE_DIST,
+                0,
+                self.size().width(),
+                self.size().height()
+                ):
+                    shape.move(-MOVE_DIST, 0)
             self.update()
         elif key == Qt.Key.Key_Right:
             for shape in shape_container:
-                if shape.selected:
-                    shape.move(MOVE_DIST, 0,
-                               self.size().width(),
-                               self.size().height())
-            self.update()
-
-        # Change size of all selected
-        elif key == Qt.Key.Key_Minus:
-            for shape in shape_container:
-                if shape.selected:
-                    shape.resize(-SCALE_INCREMENT,
-                                 self.size().width(),
-                                 self.size().height())
-            self.update()
-        elif key == Qt.Key.Key_Equal:
-            for shape in shape_container:
-                if shape.selected:
-                    shape.resize(SCALE_INCREMENT,
-                                 self.size().width(),
-                                 self.size().height())
+                if shape.selected and shape.move_possible(
+                MOVE_DIST,
+                0,
+                self.size().width(),
+                self.size().height()
+                ):
+                    shape.move(MOVE_DIST, 0)
             self.update()
 
         # Delete all selected
@@ -352,7 +374,6 @@ class CentralWidget(QWidget):
         # Info label
         self.info_label = QLabel("Hold CTRL to select multiple\n"
                                  "Use ARROWS to move objects\n"
-                                 "Use - and = to resize objects\n"
                                  "Press DELETE to delete selected")
         self.main_layout.addWidget(self.info_label)
 
@@ -406,6 +427,7 @@ class MainWindow(QMainWindow):
         editing_toolbar.addWidget(QLabel('Editing:'))
         editing_toolbar.addAction('Select', partial(self.set_mode, 'Select'))
         editing_toolbar.addAction('Color', self.change_color)
+        editing_toolbar.addAction('Group', self.group)
         self.addToolBar(editing_toolbar)
 
     def change_color(self):
@@ -413,6 +435,19 @@ class MainWindow(QMainWindow):
         for shape in shape_container:
             if shape.selected:
                 shape.color = color
+
+    def group(self):
+        group = Group()
+        shapes_to_remove_from_container = []
+        for shape in shape_container:
+            if shape.selected:
+                group.add(shape)
+                shapes_to_remove_from_container.append(shape)
+        for shape in shapes_to_remove_from_container:
+            shape_container.remove(shape)
+        shape_container.append(group)
+        self.update()
+        print('Group created')
 
     def save(self):
         filename = QFileDialog.getSaveFileName()[0]
