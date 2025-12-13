@@ -165,12 +165,18 @@ class Point(Shape):
                    f'{self.center_y}\n')
 
     def load(self, file):
-        ...
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
 
 
 class ConnectedPointGroup(Shape):
-    def __init__(self, center_x, center_y, points: list[Point]=None):
+    def __init__(self,
+                 center_x=0,
+                 center_y=0,
+                 points: list[Point]=None):
         super().__init__(center_x, center_y)
+        if not points:
+            points = []
         self.points = points
 
     def move_possible(self, dx, dy, widget_width, widget_height):
@@ -197,10 +203,29 @@ class ConnectedPointGroup(Shape):
                          self.points[-1].center_x,
                          self.points[-1].center_y)
 
+    def save(self, file):
+        file.write(f'CPG\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n'
+                   f'{len(self.points)}\n')
+        for point in self.points:
+            point.save(file)
+
+    def load(self, file):
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
+        for _ in range(int(file.readline())):  # Number of points
+            file.readline()  # Discard 'P'
+            p = Point(int(file.readline()), int(file.readline()))
+            self.points.append(p)
+
 
 class Section(ConnectedPointGroup):
     # Make sure there are 2 points
-    def __init__(self, center_x: int, center_y: int, points: list[Point]=None):
+    def __init__(self,
+                 center_x: int=0,
+                 center_y: int=0,
+                 points: list[Point]=None):
         if points:
             if len(points) != 2:
                 raise ValueError('Section can only have 2 points')
@@ -214,7 +239,10 @@ class Section(ConnectedPointGroup):
 
 class Rectangle(ConnectedPointGroup):
     # Make sure there are 4 points
-    def __init__(self, center_x: int, center_y: int, points: list[Point]=None):
+    def __init__(self,
+                 center_x: int=0,
+                 center_y: int=0,
+                 points: list[Point]=None):
         if points:
             if len(points) != 4:
                 raise ValueError('Section can only have 2 points')
@@ -230,7 +258,10 @@ class Rectangle(ConnectedPointGroup):
 
 
 class Square(Rectangle):
-    def __init__(self, center_x, center_y, points=None):
+    def __init__(self,
+                 center_x=0,
+                 center_y=0,
+                 points=None):
         if not points:  # Default points
             super().__init__(center_x, center_y,
                              [Point(center_x-50, center_y-50),
@@ -247,6 +278,7 @@ class ShapeFactory:
             'E\n': Ellipse,
             'C\n': Circle,
             'P\n': Point,
+            'CPG\n': ConnectedPointGroup,
             'S\n': Section,
             'R\n': Rectangle,
             'SQ\n': Square
@@ -511,9 +543,11 @@ class MainWindow(QMainWindow):
                 shape.save(file)
 
     def load(self):
+        # Clear the global container
         global shape_container
-        filename = QFileDialog.getOpenFileName()[0]
         shape_container = []
+
+        filename = QFileDialog.getOpenFileName()[0]
         with open(filename, 'r') as file:
             container_size = int(file.readline())
             print(container_size)
