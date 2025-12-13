@@ -77,8 +77,8 @@ class Shape:
 
 
 class Group(Shape):
-    def __init__(self):
-        super().__init__(0, 0)
+    def __init__(self, center_x=0, center_y=0):
+        super().__init__(center_x, center_y)
         self.objs = []
 
     def add(self, obj):
@@ -107,6 +107,22 @@ class Group(Shape):
     def paint(self, painter):
         for obj in self.objs:
             obj.paint(painter)
+
+    def save(self, file):
+        file.write(f'G\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n'
+                   f'{len(self.objs)}\n')  # Number of objs
+        for obj in self.objs:
+            obj.save(file)
+
+    def load(self, file):
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
+        for _ in range(int(file.readline())):  # Number of objs
+            obj = window.factory.create_default_shape(file.readline())
+            obj.load(file)
+            self.objs.append(obj)
 
 
 class Ellipse(Shape):
@@ -275,6 +291,7 @@ class ShapeFactory:
         """По коду возвращает дефолтный объект,
         у которого потом вызывается load()"""
         self.shape_dict = {
+            'G\n': Group,
             'E\n': Ellipse,
             'C\n': Circle,
             'P\n': Point,
