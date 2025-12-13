@@ -18,6 +18,12 @@ from PyQt6.QtWidgets import (QApplication,
                              QWidget)
 
 
+RADIUS = 70
+MOVE_DIST = 40
+SCALE_INCREMENT = 2
+shape_container = []
+
+
 class Shape:
     def __init__(self, center_x, center_y):
         self.center_x = center_x
@@ -63,11 +69,11 @@ class Shape:
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
 
-    def save(self):
-        """Сохраняет объект в файл. Переписывается у потомков"""
+    def save(self, file):
+        pass
 
-    def load(self):
-        """Загружает объект из файла. Переписывается у потомков"""
+    def load(self, file):
+        pass
 
 
 class Group(Shape):
@@ -104,19 +110,14 @@ class Group(Shape):
 
 
 class Ellipse(Shape):
-    def __init__(self, center_x, center_y, r1=None, r2=None):
+    def __init__(self,
+                 center_x=0,
+                 center_y=0,
+                 r1=RADIUS+20,
+                 r2=RADIUS-20):
         super().__init__(center_x, center_y)
-        if r1:
-            if r2:  # Ellipse
-                self.r1 = r1
-                self.r2 = r2
-            else:  # Circle
-                self.r1 = RADIUS
-                self.r2 = RADIUS
-        else:
-            # Default ellipse
-            self.r1 = RADIUS + 20
-            self.r2 = RADIUS - 20
+        self.r1 = r1
+        self.r2 = r2
 
     def move_possible(self, dx, dy, widget_width, widget_height):
         new_center_x = self.center_x + dx
@@ -138,17 +139,37 @@ class Ellipse(Shape):
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
 
+    def save(self, file):
+        file.write(f'E\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n'
+                   f'{self.r1}\n'
+                   f'{self.r2}\n')
+
+    def load(self, file):
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
+        self.r1 = int(file.readline())
+        self.r2 = int(file.readline())
+
 
 class Circle(Ellipse):
-    pass
+    def __init__(self, center_x, center_y, r1=RADIUS):
+        super().__init__(center_x, center_y, r1, r1)
 
 
 class Point(Shape):
-    pass
+    def save(self, file):
+        file.write(f'P\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n')
+
+    def load(self, file):
+        ...
 
 
 class ConnectedPointGroup(Shape):
-    def __init__(self, center_x, center_y, points: list[Point]):
+    def __init__(self, center_x, center_y, points: list[Point]=None):
         super().__init__(center_x, center_y)
         self.points = points
 
@@ -216,6 +237,23 @@ class Square(Rectangle):
                               Point(center_x-50, center_y+50),
                               Point(center_x+50, center_y+50),
                               Point(center_x+50, center_y-50)])
+
+
+class ShapeFactory:
+    def __init__(self):
+        """По коду возвращает дефолтный объект,
+        у которого потом вызывается load()"""
+        self.shape_dict = {
+            'E\n': Ellipse,
+            'C\n': Circle,
+            'P\n': Point,
+            'S\n': Section,
+            'R\n': Rectangle,
+            'SQ\n': Square
+        }
+
+    def create_default_shape(self, code):
+        return self.shape_dict[code](0, 0)
 
 
 class PaintWidget(QPushButton):
@@ -398,6 +436,7 @@ class MainWindow(QMainWindow):
         self.create_menu()
         self.create_creation_toolbar()
         self.create_editing_toolbar()
+        self.factory = ShapeFactory()
 
     def create_menu(self):
         # Don't know what should go here. Save, load and exit?
@@ -428,6 +467,7 @@ class MainWindow(QMainWindow):
         editing_toolbar.addAction('Select', partial(self.set_mode, 'Select'))
         editing_toolbar.addAction('Color', self.change_color)
         editing_toolbar.addAction('Group', self.group)
+        editing_toolbar.addAction('Ungroup', self.ungroup)
         self.addToolBar(editing_toolbar)
 
     def change_color(self):
@@ -449,24 +489,42 @@ class MainWindow(QMainWindow):
         self.update()
         print('Group created')
 
+    def ungroup(self):
+        shapes_to_remove_from_container = []
+        for shape in shape_container:
+            if shape.selected and type(shape) is Group:
+                for obj in shape.objs:
+                    shape_container.append(obj)
+                shapes_to_remove_from_container.append(shape)
+        for shape in shapes_to_remove_from_container:
+            shape_container.remove(shape)
+        self.update()
+        print('Upgroup')
+
     def save(self):
         filename = QFileDialog.getSaveFileName()[0]
         with open(filename, 'w') as file:
-            file.write("Hello, world!")
+            # Save container size
+            file.write(f'{len(shape_container)}\n')
+            # Save all shapes
+            for shape in shape_container:
+                shape.save(file)
 
     def load(self):
+        global shape_container
         filename = QFileDialog.getOpenFileName()[0]
+        shape_container = []
         with open(filename, 'r') as file:
-            content = file.read()
-            print(content)
+            container_size = int(file.readline())
+            print(container_size)
+            for _ in range(container_size):
+                obj = self.factory.create_default_shape(file.readline())
+                obj.load(file)
+                shape_container.append(obj)
+
 
 
 if __name__ == '__main__':
-    RADIUS = 70
-    MOVE_DIST = 40
-    SCALE_INCREMENT = 2
-    shape_container = []
-
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
