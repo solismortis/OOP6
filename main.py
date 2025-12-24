@@ -86,7 +86,7 @@ class Group(Shape):
 
     def got_selected(self, x, y):
         for obj in self.objs:
-            # If at least 1 is selected, all are
+            # If at least 1 is selected, the entire group is
             if obj.got_selected(x, y):
                 self.selected = True
                 return True
@@ -259,22 +259,6 @@ class ConnectedPointGroup(Shape):
                          self.points[-1].center_x,
                          self.points[-1].center_y)
 
-    def save(self, file):
-        file.write(f'CPG\n'
-                   f'{self.center_x}\n'
-                   f'{self.center_y}\n'
-                   f'{len(self.points)}\n')
-        for point in self.points:
-            point.save(file)
-
-    def load(self, file):
-        self.center_x = int(file.readline())
-        self.center_y = int(file.readline())
-        for _ in range(int(file.readline())):  # Number of points
-            file.readline()  # Discard 'P'
-            p = Point(int(file.readline()), int(file.readline()))
-            self.points.append(p)
-
     def resize(self, ds, widget_width, widget_height):
         if ds < 0:
             ds = 1 / abs(ds)
@@ -308,6 +292,25 @@ class ConnectedPointGroup(Shape):
             point.center_x = int(self.center_x + vector_x)
             point.center_y = int(self.center_y + vector_y)
 
+    def save(self, file):
+        file.write(f'CPG\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n'
+                   f'{len(self.points)}\n')
+        for point in self.points:
+            point.save(file)
+
+    def load(self, file):
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
+        # Clear points
+        self.points = []
+        for _ in range(int(file.readline())):  # Number of points
+            file.readline()  # Discard 'P'
+            p = Point(int(file.readline()), int(file.readline()))
+            self.points.append(p)
+
+
 class Rectangle(ConnectedPointGroup):
     def set_width_and_height(self):
         self.width = self.points[2].center_x - self.points[0].center_x
@@ -317,12 +320,8 @@ class Rectangle(ConnectedPointGroup):
                  center_x: int=0,
                  center_y: int=0,
                  points: list[Point]=None):
-        # Make sure there are only 4 points
         if points:
-            if len(points) != 4:
-                raise ValueError('Rectangle can only have 4 points')
-            else:
-                super().__init__(center_x, center_y, points)
+            super().__init__(center_x, center_y, points)
         else:  # Default points
             super().__init__(center_x, center_y,
                              [Point(center_x-100, center_y-50),
@@ -339,6 +338,28 @@ class Rectangle(ConnectedPointGroup):
             self.selected = True
             return True
         return False
+
+    def save(self, file):
+        file.write(f'REC\n'
+                   f'{self.center_x}\n'
+                   f'{self.center_y}\n'
+                   f'{self.width}\n'
+                   f'{self.height}\n'
+                   f'{len(self.points)}\n')
+        for point in self.points:
+            point.save(file)
+
+    def load(self, file):
+        self.center_x = int(file.readline())
+        self.center_y = int(file.readline())
+        self.width = int(file.readline())
+        self.height = int(file.readline())
+        # Clear points
+        self.points = []
+        for _ in range(int(file.readline())):  # Number of points
+            file.readline()  # Discard 'P'
+            p = Point(int(file.readline()), int(file.readline()))
+            self.points.append(p)
 
     def resize(self, ds, widget_width, widget_height):
         super().resize(ds, widget_width, widget_height)
@@ -368,7 +389,7 @@ class ShapeFactory:
             'C\n': Circle,
             'P\n': Point,
             'CPG\n': ConnectedPointGroup,
-            'R\n': Rectangle,
+            'REC\n': Rectangle,
             'SQ\n': Square
         }
 
@@ -678,7 +699,6 @@ class MainWindow(QMainWindow):
                 obj = self.factory.create_default_shape(file.readline())
                 obj.load(file)
                 shape_container.append(obj)
-
 
 
 if __name__ == '__main__':
