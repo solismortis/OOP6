@@ -86,7 +86,9 @@ class Group(Shape):
 
     def got_selected(self, x, y):
         for obj in self.objs:
-            if obj.got_selected:
+            # If at least 1 is selected, all are
+            if obj.got_selected(x, y):
+                self.selected = True
                 return True
         return False
 
