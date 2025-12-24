@@ -1,6 +1,4 @@
-# Attempts to merge OOP4 and 6 with 6 as the base
 # TODO: Import everything from lab 4 that u deleted
-# TODO: Save color?
 """Qt hates floats in coords"""
 import math
 import sys
@@ -25,7 +23,6 @@ RADIUS = 70
 MOVE_DIST = 40
 SCALE_INCREMENT = 2
 shape_container = []
-CENTER_COLOR = 'white'
 
 
 class Shape:
@@ -36,7 +33,10 @@ class Shape:
         self.selected = False
 
     def got_selected(self, x, y):
-        pass
+        if ((x - self.center_x) ** 2 + (y - self.center_y) ** 2) ** 0.5 <= RADIUS:
+            self.selected = True
+            return True
+        return False
 
     def move_possible(self, dx, dy, widget_width, widget_height):
         # Left
@@ -68,7 +68,7 @@ class Shape:
                          self.center_y - 10)
 
     def paint(self, painter):
-        pass
+        painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
 
     def save(self, file):
         pass
@@ -76,19 +76,11 @@ class Shape:
     def load(self, file):
         pass
 
-    def resize(self, ds, widget_width, widget_height):
-        pass
 
 class Group(Shape):
     def __init__(self, center_x=0, center_y=0):
         super().__init__(center_x, center_y)
         self.objs = []
-
-    def got_selected(self, x, y):
-        for obj in self.objs:
-            if obj.got_selected:
-                return True
-        return False
 
     def add(self, obj):
         self.objs.append(obj)
@@ -144,13 +136,6 @@ class Ellipse(Shape):
         self.r1 = r1
         self.r2 = r2
 
-    def got_selected(self, x, y):
-        if ((x-self.center_x)/self.r1)**2 \
-            + ((y-self.center_y)/self.r2)**2 <= 1:
-            self.selected = True
-            return True
-        return False
-
     def move_possible(self, dx, dy, widget_width, widget_height):
         new_center_x = self.center_x + dx
         new_center_y = self.center_y + dy
@@ -183,28 +168,6 @@ class Ellipse(Shape):
         self.center_y = int(file.readline())
         self.r1 = int(file.readline())
         self.r2 = int(file.readline())
-
-    def resize(self, ds, widget_width=None, widget_height=None):
-        # ds too small for ellipse
-        if ds > 0:
-            ds += 30
-        else:
-            ds -= 30
-        # Check borders
-        if ds < 0:
-            pass  # No need to check borders
-        else:
-            new_r1 = self.r1 + ds
-            new_r2 = self.r2 + ds
-            # Check left and top
-            if self.center_x < new_r1 or self.center_y < new_r2:
-                return
-            # Check right and bottom
-            if self.center_x + new_r1 > widget_width \
-            or self.center_y + new_r2 > widget_height:
-                return
-        self.r1 += ds
-        self.r2 += ds
 
 
 class Circle(Ellipse):
@@ -273,52 +236,33 @@ class ConnectedPointGroup(Shape):
             p = Point(int(file.readline()), int(file.readline()))
             self.points.append(p)
 
-    def resize(self, ds, widget_width, widget_height):
-        if ds < 0:
-            ds = 1 / abs(ds)
-        # Check borders
-        for point in self.points:
-            # Calculate vector from center to point
-            vector_x = point.center_x - self.center_x
-            vector_y = point.center_y - self.center_y
 
-            # Scale the vector
-            vector_x *= ds
-            vector_y *= ds
-
-            # Calculate new position
-            new_center_x = int(self.center_x + vector_x)
-            new_center_y = int(self.center_y + vector_y)
-            if new_center_x < 0 or new_center_y < 0 \
-            or new_center_x > widget_width or new_center_y > widget_height:
-                return
-
-        for point in self.points:
-            # Calculate vector from center to point
-            vector_x = point.center_x - self.center_x
-            vector_y = point.center_y - self.center_y
-
-            # Scale the vector
-            vector_x *= ds
-            vector_y *= ds
-
-            # Calculate new position. We have to int() because PyQT doesn't want float for coords
-            point.center_x = int(self.center_x + vector_x)
-            point.center_y = int(self.center_y + vector_y)
-
-class Rectangle(ConnectedPointGroup):
-    def set_width_and_height(self):
-        self.width = self.points[2].center_x - self.points[0].center_x
-        self.height = self.points[1].center_y - self.points[0].center_y
-
+class Section(ConnectedPointGroup):
+    # Make sure there are 2 points
     def __init__(self,
                  center_x: int=0,
                  center_y: int=0,
                  points: list[Point]=None):
-        # Make sure there are only 4 points
+        if points:
+            if len(points) != 2:
+                raise ValueError('Section can only have 2 points')
+            else:
+                super().__init__(center_x, center_y, points)
+        else:  # Default points
+            super().__init__(center_x, center_y,
+                             [Point(center_x-50, center_y-50),
+                              Point(center_x+50, center_y+50)])
+
+
+class Rectangle(ConnectedPointGroup):
+    # Make sure there are 4 points
+    def __init__(self,
+                 center_x: int=0,
+                 center_y: int=0,
+                 points: list[Point]=None):
         if points:
             if len(points) != 4:
-                raise ValueError('Rectangle can only have 4 points')
+                raise ValueError('Section can only have 2 points')
             else:
                 super().__init__(center_x, center_y, points)
         else:  # Default points
@@ -327,20 +271,7 @@ class Rectangle(ConnectedPointGroup):
                               Point(center_x-100, center_y+50),
                               Point(center_x+100, center_y+50),
                               Point(center_x+100, center_y-50)])
-        self.width = None
-        self.height = None
-        self.set_width_and_height()
 
-    def got_selected(self, x, y):
-        if self.center_x - self.width/2 <= x <= self.center_x + self.width/2 \
-            and self.center_y - self.height/2 <= y <= self.center_y + self.height/2:
-            self.selected = True
-            return True
-        return False
-
-    def resize(self, ds, widget_width, widget_height):
-        super().resize(ds, widget_width, widget_height)
-        self.set_width_and_height()
 
 
 class Square(Rectangle):
@@ -366,6 +297,7 @@ class ShapeFactory:
             'C\n': Circle,
             'P\n': Point,
             'CPG\n': ConnectedPointGroup,
+            'S\n': Section,
             'R\n': Rectangle,
             'SQ\n': Square
         }
@@ -382,7 +314,6 @@ class PaintWidget(QPushButton):
         self.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
         self.mode = 'Ellipse'
         self.ctrl_multiple_select = False
-        self.intersect_select = False
 
     def paintEvent(self, event):
         painter = QPainter()
@@ -400,7 +331,7 @@ class PaintWidget(QPushButton):
 
         # Draw center
         pen.setWidth(1)
-        pen.setColor(QColor(CENTER_COLOR))
+        pen.setColor(QColor('blue'))
         painter.setPen(pen)
         for shape in shape_container:
             shape.draw_center(painter)
@@ -411,35 +342,21 @@ class PaintWidget(QPushButton):
         x = event.pos().x()
         y = event.pos().y()
         if self.mode == 'Select':
-            if not self.intersect_select:
-                selected = False
+            selected = False
+            for shape in shape_container:
+                if shape.got_selected(x, y):
+                    selected = True
+                    if not self.ctrl_multiple_select:
+                        for other_shape in shape_container:
+                            if other_shape != shape:
+                                other_shape.selected = False
+                    break
+            if selected:
+                print('Selected')
+            else:  # Deselect all
                 for shape in shape_container:
-                    if shape.got_selected(x, y):
-                        selected = True
-                        if not self.ctrl_multiple_select:
-                            for other_shape in shape_container:
-                                if other_shape != shape:
-                                    other_shape.selected = False
-                            break
-                if selected:
-                    print("Selected!")
-                else:  # Nothing selected, deselect all
-                    for shape in shape_container:
-                        shape.selected = False
-            else:  # intersect_select
-                selected = False
-                if not self.ctrl_multiple_select:
-                    for shape in shape_container:
-                        shape.selected = False
-                for shape in shape_container:
-                    if shape.got_selected(x, y):
-                        selected = True
-                if selected:
-                    print("Selected!")
-                else:  # Nothing selected, deselect all
-                    for shape in shape_container:
-                        shape.selected = False
-        else:  # Modes other than "select"
+                    shape.selected = False
+        else:  # Create
             # Deselect all
             for shape in shape_container:
                 shape.selected = False
@@ -449,6 +366,9 @@ class PaintWidget(QPushButton):
                 self.parent.parent.set_mode('Select')
             elif self.mode == 'Circle':
                 shape_container.append(Circle(x, y, RADIUS))
+                self.parent.parent.set_mode('Select')
+            elif self.mode == 'Section':
+                shape_container.append(Section(x, y))
                 self.parent.parent.set_mode('Select')
             elif self.mode == 'Rectangle':
                 shape_container.append(Rectangle(x, y))
@@ -513,22 +433,6 @@ class PaintWidget(QPushButton):
                     shape.move(MOVE_DIST, 0)
             self.update()
 
-        # Change size of all selected
-        elif key == Qt.Key.Key_Minus:
-            for shape in shape_container:
-                if shape.selected:
-                    shape.resize(-SCALE_INCREMENT,
-                                 self.size().width(),
-                                 self.size().height())
-            self.update()
-        elif key == Qt.Key.Key_Equal:
-            for shape in shape_container:
-                if shape.selected:
-                    shape.resize(SCALE_INCREMENT,
-                                 self.size().width(),
-                                 self.size().height())
-            self.update()
-
         # Delete all selected
         elif key == Qt.Key.Key_Delete:
             shapes_to_delete = []
@@ -546,9 +450,7 @@ class PaintWidget(QPushButton):
         key = event.key()
         if key == Qt.Key.Key_Control:
             self.ctrl_multiple_select = False
-        elif key == Qt.Key.Key_Z:
-            self.intersect_select = not self.intersect_select
-            self.parent.intersect_select_label.setText(f"Intersect select mode: {self.intersect_select}")
+
 
 class CentralWidget(QWidget):
     def __init__(self, parent):
@@ -560,18 +462,12 @@ class CentralWidget(QWidget):
         # Info label
         self.info_label = QLabel("Hold CTRL to select multiple\n"
                                  "Use ARROWS to move objects\n"
-                                 "Use - and = to resize objects\n"
-                                 "Press DELETE to delete selected\n"
-                                 "Press Z to change intersect select mode")
+                                 "Press DELETE to delete selected")
         self.main_layout.addWidget(self.info_label)
 
         # Paint
         self.paint_button = PaintWidget(parent=self)
         self.main_layout.addWidget(self.paint_button)
-
-        # Intersect label
-        self.intersect_select_label = QLabel(f"Intersect select mode: {self.paint_button.intersect_select}")
-        self.main_layout.addWidget(self.intersect_select_label)
 
         # Mode label
         self.mode_label = QLabel(parent=self, text=f'Current mode: {self.paint_button.mode}')
@@ -600,14 +496,15 @@ class MainWindow(QMainWindow):
         menu.addAction("&Exit", self.close)
 
     def create_creation_toolbar(self):
-        creation_toolbar = QToolBar()
-        creation_toolbar.setStyleSheet("background-color: #537278; border: none;")
-        creation_toolbar.addWidget(QLabel('Creation:'))
-        creation_toolbar.addAction("Ellipse", partial(self.set_mode, 'Ellipse'))
-        creation_toolbar.addAction("Circle", partial(self.set_mode, 'Circle'))
-        creation_toolbar.addAction("Rectangle", partial(self.set_mode, 'Rectangle'))
-        creation_toolbar.addAction("Square", partial(self.set_mode, 'Square'))
-        self.addToolBar(creation_toolbar)
+        creationg_toolbar = QToolBar()
+        creationg_toolbar.setStyleSheet("background-color: #537278; border: none;")
+        creationg_toolbar.addWidget(QLabel('Creation:'))
+        creationg_toolbar.addAction("Ellipse", partial(self.set_mode, 'Ellipse'))
+        creationg_toolbar.addAction("Circle", partial(self.set_mode, 'Circle'))
+        creationg_toolbar.addAction("Section", partial(self.set_mode, 'Section'))
+        creationg_toolbar.addAction("Rectangle", partial(self.set_mode, 'Rectangle'))
+        creationg_toolbar.addAction("Square", partial(self.set_mode, 'Square'))
+        self.addToolBar(creationg_toolbar)
 
     def set_mode(self, mode):
         self.central_widget.paint_button.mode = mode
@@ -652,7 +549,7 @@ class MainWindow(QMainWindow):
         for shape in shapes_to_remove_from_container:
             shape_container.remove(shape)
         self.update()
-        print('Ungroup')
+        print('Upgroup')
 
     def save(self):
         filename = QFileDialog.getSaveFileName()[0]
